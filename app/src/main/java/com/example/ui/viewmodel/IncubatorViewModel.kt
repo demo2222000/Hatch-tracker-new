@@ -117,6 +117,18 @@ class IncubatorViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun recordRottedEggRemoved(batchId: Long, count: Int = 1, timestamp: Long = System.currentTimeMillis(), notes: String = "") {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = repository.getBatchById(batchId) ?: return@launch
+            val updated = current.copy(
+                rottedEggsRemoved = current.rottedEggsRemoved + count,
+                lastEggRottedTimestamp = timestamp,
+                eggRottedNotes = if (notes.isNotBlank()) notes else current.eggRottedNotes
+            )
+            repository.updateBatch(updated)
+        }
+    }
+
     fun setActiveBatch(id: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.setActiveBatch(id)

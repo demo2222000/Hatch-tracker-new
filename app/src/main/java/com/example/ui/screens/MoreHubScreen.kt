@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.Biotech
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Settings
@@ -54,6 +55,7 @@ import com.example.ui.viewmodel.IncubatorViewModel
 @Composable
 fun MoreHubScreen(
     viewModel: IncubatorViewModel,
+    onNavigateToPredictor: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToAlerts: () -> Unit,
     onNavigateToReports: () -> Unit,
@@ -78,6 +80,18 @@ fun MoreHubScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                HubMenuItem(
+                    icon = Icons.Default.Biotech,
+                    iconColor = AmberPrimaryLight,
+                    title = "Predict Hatch Rate",
+                    description = "Predict hatching % based on temperature, humidity, egg age, and rotted egg logs",
+                    badge = "NEW",
+                    tag = "menu_predict_hatch_rate",
+                    onClick = onNavigateToPredictor
+                )
+            }
+
             item {
                 HubMenuItem(
                     icon = Icons.Default.AutoGraph,

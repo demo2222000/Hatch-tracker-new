@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateRight
+import androidx.compose.material.icons.filled.Biotech
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.GridView
@@ -47,6 +48,7 @@ import com.example.ui.screens.BatchesScreen
 import com.example.ui.screens.CreateEditBatchScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.EggTurningScreen
+import com.example.ui.screens.HatchRatePredictorScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.MoreHubScreen
 import com.example.ui.screens.ReportsScreen
@@ -73,6 +75,9 @@ sealed class Screen(val route: String, val title: String, val icon: androidx.com
     object Reports : Screen("reports", "Reports", null)
     object SpeciesGuide : Screen("species_guide", "Guide", null)
     object Settings : Screen("settings", "Settings", null)
+    object PredictHatchRate : Screen("predict_hatch_rate?batchId={batchId}", "Predict Hatch Rate", Icons.Default.Biotech) {
+        fun createRoute(batchId: Long? = null) = if (batchId != null) "predict_hatch_rate?batchId=$batchId" else "predict_hatch_rate"
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -227,7 +232,10 @@ fun MainScaffold(
                 BatchDetailScreen(
                     batchId = batchId,
                     viewModel = viewModel,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToPredictor = { id ->
+                        navController.navigate(Screen.PredictHatchRate.createRoute(id))
+                    }
                 )
             }
 
@@ -245,6 +253,7 @@ fun MainScaffold(
             composable(Screen.More.route) {
                 MoreHubScreen(
                     viewModel = viewModel,
+                    onNavigateToPredictor = { navController.navigate(Screen.PredictHatchRate.createRoute(null)) },
                     onNavigateToHistory = { navController.navigate(Screen.History.route) },
                     onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
                     onNavigateToReports = { navController.navigate(Screen.Reports.route) },
@@ -280,6 +289,26 @@ fun MainScaffold(
             // 12. Settings Screen
             composable(Screen.Settings.route) {
                 SettingsScreen(viewModel = viewModel)
+            }
+
+            // 13. Predict Hatch Rate Screen
+            composable(
+                route = Screen.PredictHatchRate.route,
+                arguments = listOf(
+                    navArgument("batchId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val batchIdStr = backStackEntry.arguments?.getString("batchId")
+                val batchId = batchIdStr?.toLongOrNull()
+                HatchRatePredictorScreen(
+                    viewModel = viewModel,
+                    batchId = batchId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
         }
     }

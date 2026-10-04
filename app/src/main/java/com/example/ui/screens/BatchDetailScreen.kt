@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,20 +18,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.Biotech
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CleanHands
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -41,7 +52,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,18 +68,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.IncubationBatch
 import com.example.data.model.SpeciesPreset
 import com.example.ui.theme.AmberPrimaryLight
+import com.example.ui.theme.StatusAlert
 import com.example.ui.theme.StatusCritical
 import com.example.ui.theme.StatusOptimal
 import com.example.ui.theme.TealSecondaryLight
 import com.example.ui.viewmodel.IncubatorViewModel
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,13 +91,23 @@ fun BatchDetailScreen(
     batchId: Long,
     viewModel: IncubatorViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToPredictor: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val batches by viewModel.allBatches.collectAsState()
     val batch = batches.find { it.id == batchId }
-    val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val dateTimeFormat = remember { SimpleDateFormat("MMM dd, yyyy, hh:mm a", Locale.getDefault()) }
     var isGeneratingPdf by remember { mutableStateOf(false) }
+
+    // Dialog state for editing Start Date (e.g. backdating to Oct 2)
+    var showStartDateDialog by remember { mutableStateOf(false) }
+
+    // Dialog state for recording rotted egg removal
+    var showRottedEggDialog by remember { mutableStateOf(false) }
+    var rottedCountInput by remember { mutableStateOf("1") }
+    var rottedNotesInput by remember { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -93,6 +120,13 @@ fun BatchDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { onNavigateToPredictor(batchId) },
+                        modifier = Modifier.testTag("action_predict_hatch_rate_topbar")
+                    ) {
+                        Icon(Icons.Default.Biotech, contentDescription = "Predict Hatch Rate", tint = AmberPrimaryLight)
+                    }
+
                     IconButton(
                         onClick = {
                             if (batch != null) {
@@ -211,6 +245,42 @@ fun BatchDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Start / Setting Date editor & Hatch Rate Predictor button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showStartDateDialog = true }
+                                    .padding(vertical = 4.dp, horizontal = 6.dp)
+                            ) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = AmberPrimaryLight, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Started: ${dateFormat.format(Date(batch.startDate))}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.Edit, contentDescription = "Change Start Date", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+
+                            Button(
+                                onClick = { onNavigateToPredictor(batch.id) },
+                                colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight.copy(alpha = 0.15f), contentColor = AmberPrimaryLight),
+                                modifier = Modifier.testTag("button_predict_hatch_rate")
+                            ) {
+                                Icon(Icons.Default.AutoGraph, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Predict Hatch %", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
@@ -301,11 +371,116 @@ fun BatchDetailScreen(
                             }
                         )
 
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        CounterRow(
+                            label = "Rotted / Exploder Eggs Removed",
+                            count = batch.rottedEggsRemoved,
+                            onIncrement = {
+                                viewModel.recordRottedEggRemoved(
+                                    batchId = batch.id,
+                                    count = 1,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            },
+                            onDecrement = {
+                                viewModel.updateBatch(
+                                    batch.copy(
+                                        rottedEggsRemoved = (batch.rottedEggsRemoved - 1).coerceAtLeast(0)
+                                    )
+                                )
+                            },
+                            badgeColor = StatusAlert
+                        )
+
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text(
                             text = "Formula: (Hatched / Initial Set) × 100 = (${batch.hatchedEggs} / ${batch.totalEggs}) × 100",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Biosecurity & Rotted Egg Tracking Card (User Consistency Request)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (batch.rottedEggsRemoved > 0) StatusAlert.copy(alpha = 0.08f)
+                        else MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (batch.rottedEggsRemoved > 0) Icons.Default.Warning else Icons.Default.CleanHands,
+                                    contentDescription = null,
+                                    tint = if (batch.rottedEggsRemoved > 0) StatusAlert else TealSecondaryLight
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "BIOSECURITY & SPOILAGE LOG",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = { showRottedEggDialog = true },
+                                modifier = Modifier.testTag("action_log_rotted_egg")
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Log Rotted Egg", fontSize = 12.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "Rotted Eggs Removed: ${batch.rottedEggsRemoved}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        val lastRottedTimeStr = batch.lastEggRottedTimestamp?.let {
+                            dateTimeFormat.format(Date(it))
+                        } ?: "None recorded"
+
+                        Text(
+                            text = "Last Egg Rotted / Removed Time: $lastRottedTimeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (batch.rottedEggsRemoved > 0) StatusAlert else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (batch.eggRottedNotes.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Notes: ${batch.eggRottedNotes}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Consistency Rule: Promptly remove spoiled or weeping eggs and wipe the tray with mild disinfectant. This prevents harmful bacteria gases from suffocating viable embryos and stabilizes air cell humidity.",
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -422,6 +597,99 @@ fun BatchDetailScreen(
                     }
                 }
             }
+        }
+
+        // Dialog for updating batch start date (e.g. backdating to October 2nd)
+        if (showStartDateDialog && batch != null) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = batch.startDate
+            )
+            DatePickerDialog(
+                onDismissRequest = { showStartDateDialog = false },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { utcMillis ->
+                                val calUtc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                                calUtc.timeInMillis = utcMillis
+                                val localCal = Calendar.getInstance()
+                                localCal.set(
+                                    calUtc.get(Calendar.YEAR),
+                                    calUtc.get(Calendar.MONTH),
+                                    calUtc.get(Calendar.DAY_OF_MONTH),
+                                    10, 0, 0
+                                )
+                                viewModel.updateBatch(batch.copy(startDate = localCal.timeInMillis))
+                            }
+                            showStartDateDialog = false
+                        }
+                    ) {
+                        Text("Update Start Date")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showStartDateDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
+
+        // Dialog for logging rotted egg removal
+        if (showRottedEggDialog && batch != null) {
+            AlertDialog(
+                onDismissRequest = { showRottedEggDialog = false },
+                title = { Text("Log Spoiled / Rotted Egg Removal", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "Record rotted egg removal to maintain environmental consistency and calculate accurate hatch predictions.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedTextField(
+                            value = rottedCountInput,
+                            onValueChange = { rottedCountInput = it },
+                            label = { Text("Eggs Removed") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = rottedNotesInput,
+                            onValueChange = { rottedNotesInput = it },
+                            label = { Text("Sanitation / Reason Notes") },
+                            placeholder = { Text("e.g. Weeping egg removed, tray disinfected") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val count = rottedCountInput.toIntOrNull() ?: 1
+                            viewModel.recordRottedEggRemoved(
+                                batchId = batch.id,
+                                count = count,
+                                timestamp = System.currentTimeMillis(),
+                                notes = rottedNotesInput
+                            )
+                            showRottedEggDialog = false
+                            rottedNotesInput = ""
+                        }
+                    ) {
+                        Text("Record & Sanitize")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showRottedEggDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

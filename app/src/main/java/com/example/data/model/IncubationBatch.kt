@@ -30,6 +30,9 @@ data class IncubationBatch(
     val earlyQuitEggs: Int = 0,
     val lateQuitEggs: Int = 0,
     val pipsCount: Int = 0,
+    val rottedEggsRemoved: Int = 0,
+    val lastEggRottedTimestamp: Long? = null,
+    val eggRottedNotes: String = "",
     
     val status: String = "INCUBATING", // "INCUBATING", "LOCKDOWN", "HATCHED", "COMPLETED"
     val createdAt: Long = System.currentTimeMillis()
@@ -84,10 +87,10 @@ data class IncubationBatch(
         }
 
     /**
-     * Viable fertile eggs count = initial - infertile - quits
+     * Viable fertile eggs count = initial - infertile - quits - rotted
      */
     val estimatedViableEggs: Int
-        get() = (totalEggs - infertileEggs - earlyQuitEggs - lateQuitEggs).coerceAtLeast(0)
+        get() = (totalEggs - infertileEggs - earlyQuitEggs - lateQuitEggs - rottedEggsRemoved).coerceAtLeast(0)
 
     /**
      * Unhatched eggs count

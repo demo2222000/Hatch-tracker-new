@@ -48,4 +48,5 @@ val NeutralOutlineDark = Color(0xFF475569)
 val StatusOptimal = Color(0xFF10B981) // Emerald Green
 val StatusWarning = Color(0xFFF59E0B) // Amber
 val StatusCritical = Color(0xFFEF4444) // Coral Red
+val StatusAlert = StatusCritical
 val StatusDemo = Color(0xFF8B5CF6)    // Purple for clearly indicating Demo/Simulated data

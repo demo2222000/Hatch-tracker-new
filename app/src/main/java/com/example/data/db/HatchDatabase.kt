@@ -22,7 +22,7 @@ import com.example.data.model.TurningSchedule
         TurningLog::class,
         AlertLog::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class HatchDatabase : RoomDatabase() {
