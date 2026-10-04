@@ -1,0 +1,6 @@
+{
+  "name": "HatchMaster",
+  "description": "Local incubator & egg-hatching management app with real offline alerts, scheduled egg turning, batch tracking, sensor monitoring, and local PDF reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
