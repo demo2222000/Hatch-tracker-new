@@ -18,11 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.RotateLeft
-import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -118,7 +118,7 @@ fun EggTurningScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.RotateRight,
+                                imageVector = Icons.AutoMirrored.Filled.RotateRight,
                                 contentDescription = null,
                                 tint = GoldTertiaryLight,
                                 modifier = Modifier.size(28.dp)
@@ -168,7 +168,7 @@ fun EggTurningScreen(
                                         .testTag("action_turn_left"),
                                     colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight)
                                 ) {
-                                    Icon(Icons.Default.RotateLeft, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.RotateLeft, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Turned Left (45°)")
                                 }
@@ -180,7 +180,7 @@ fun EggTurningScreen(
                                         .testTag("action_turn_right"),
                                     colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight)
                                 ) {
-                                    Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Turned Right (45°)")
                                 }
@@ -326,7 +326,7 @@ private fun TurningLogCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (log.orientation == "LEFT") Icons.Default.RotateLeft else Icons.Default.RotateRight,
+                        imageVector = if (log.orientation == "LEFT") Icons.AutoMirrored.Filled.RotateLeft else Icons.AutoMirrored.Filled.RotateRight,
                         contentDescription = null,
                         tint = if (log.action == "COMPLETED") StatusOptimal else GoldTertiaryLight,
                         modifier = Modifier.size(18.dp)

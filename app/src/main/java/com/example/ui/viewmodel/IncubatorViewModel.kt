@@ -15,6 +15,7 @@ import com.example.sensor.DiscoveredSensorDevice
 import com.example.sensor.SensorSourceType
 import com.example.sensor.SensorState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ enum class HistoryRange(val label: String, val durationMs: Long) {
     ALL("All", TimeUnit.DAYS.toMillis(365))
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class IncubatorViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as HatchMasterApplication

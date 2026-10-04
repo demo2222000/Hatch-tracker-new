@@ -88,6 +88,8 @@ class SensorManager(
                 bleSource.latestReading.collect { reading ->
                     if (_activeSourceType.value == SensorSourceType.BLUETOOTH_LE && reading != null) {
                         _latestReading.value = reading
+                        val activeBatch = batchDao.getActiveBatch()
+                        sensorDao.insertReading(reading.copy(batchId = activeBatch?.id))
                         checkThresholds(reading)
                     }
                 }

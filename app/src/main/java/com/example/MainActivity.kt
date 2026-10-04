@@ -17,10 +17,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -59,7 +59,7 @@ import com.example.ui.viewmodel.IncubatorViewModel
 sealed class Screen(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector?) {
     object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Dashboard)
     object Batches : Screen("batches", "Batches", Icons.Default.Egg)
-    object Turning : Screen("turning", "Turning", Icons.Default.RotateRight)
+    object Turning : Screen("turning", "Turning", Icons.AutoMirrored.Filled.RotateRight)
     object Sensor : Screen("sensor", "Sensor", Icons.Default.Sensors)
     object More : Screen("more", "More", Icons.Default.GridView)
 

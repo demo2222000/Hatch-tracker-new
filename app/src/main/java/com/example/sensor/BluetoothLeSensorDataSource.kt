@@ -6,11 +6,13 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
+import android.os.Build
 import com.example.data.model.SensorReading
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
@@ -26,6 +29,17 @@ import java.util.UUID
 val ESS_SERVICE_UUID: UUID = UUID.fromString("0000181A-0000-1000-8000-00805F9B34FB")
 val ESS_TEMP_CHAR_UUID: UUID = UUID.fromString("00002A6E-0000-1000-8000-00805F9B34FB")
 val ESS_HUM_CHAR_UUID: UUID = UUID.fromString("00002A6F-0000-1000-8000-00805F9B34FB")
+
+/**
+ * Standard Client Characteristic Configuration Descriptor (CCCD) for enabling notifications
+ */
+val CCCD_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
+
+/**
+ * Common Custom ESP32 Incubator Sensor Service UUIDs (for DIY Arduino/ESP32 incubators)
+ */
+val ESP32_INCUBATOR_SERVICE_UUID: UUID = UUID.fromString("0000FFE0-0000-1000-8000-00805F9B34FB")
+val ESP32_CLIMATE_CHAR_UUID: UUID = UUID.fromString("0000FFE1-0000-1000-8000-00805F9B34FB")
 
 class BluetoothLeSensorDataSource(
     private val context: Context,
@@ -59,6 +73,7 @@ class BluetoothLeSensorDataSource(
 
     private var activeGatt: BluetoothGatt? = null
     private var isScanning = false
+    private var lastConnectedAddress: String? = null
 
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
@@ -82,7 +97,7 @@ class BluetoothLeSensorDataSource(
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
             _sensorState.value = _sensorState.value.copy(
                 status = SensorConnectionStatus.DISCONNECTED,
-                connectionErrorMessage = "Bluetooth is turned off"
+                connectionErrorMessage = "Bluetooth is turned off on device"
             )
             return
         }
@@ -116,6 +131,8 @@ class BluetoothLeSensorDataSource(
     @SuppressLint("MissingPermission")
     fun connectToDevice(address: String) {
         stopScan()
+        lastConnectedAddress = address
+
         val device: BluetoothDevice? = try {
             bluetoothAdapter?.getRemoteDevice(address)
         } catch (_: Exception) {
@@ -125,45 +142,14 @@ class BluetoothLeSensorDataSource(
         if (device == null) {
             _sensorState.value = _sensorState.value.copy(
                 status = SensorConnectionStatus.DISCONNECTED,
-                connectionErrorMessage = "Device not found"
+                connectionErrorMessage = "Device $address not found"
             )
             return
         }
 
         try {
             activeGatt?.close()
-            activeGatt = device.connectGatt(context, false, object : BluetoothGattCallback() {
-                override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-                    if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        scope.launch(Dispatchers.Default) {
-                            _sensorState.value = _sensorState.value.copy(
-                                status = SensorConnectionStatus.CONNECTED_REAL,
-                                deviceName = device.name ?: "BLE Incubator Sensor",
-                                deviceAddress = device.address,
-                                isSimulated = false,
-                                connectionErrorMessage = null
-                            )
-                        }
-                        gatt?.discoverServices()
-                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                        scope.launch(Dispatchers.Default) {
-                            _sensorState.value = _sensorState.value.copy(
-                                status = SensorConnectionStatus.DISCONNECTED,
-                                isSimulated = false,
-                                connectionErrorMessage = "Sensor disconnected"
-                            )
-                            _latestReading.value = null
-                        }
-                    }
-                }
-
-                override fun onCharacteristicChanged(
-                    gatt: BluetoothGatt?,
-                    characteristic: BluetoothGattCharacteristic?
-                ) {
-                    characteristic?.let { handleCharacteristicData(it) }
-                }
-            })
+            activeGatt = device.connectGatt(context, false, gattCallback)
         } catch (e: SecurityException) {
             _sensorState.value = _sensorState.value.copy(
                 status = SensorConnectionStatus.DISCONNECTED,
@@ -172,20 +158,227 @@ class BluetoothLeSensorDataSource(
         }
     }
 
-    private fun handleCharacteristicData(characteristic: BluetoothGattCharacteristic) {
-        val value = characteristic.value ?: return
-        if (characteristic.uuid == ESS_TEMP_CHAR_UUID && value.size >= 2) {
-            val raw = (value[0].toInt() and 0xFF) or (value[1].toInt() shl 8)
-            val tempC = raw / 100.0
-            val current = _sensorState.value
-            _sensorState.value = current.copy(currentTempC = tempC)
-            publishReading(tempC, current.currentHumidityPct)
-        } else if (characteristic.uuid == ESS_HUM_CHAR_UUID && value.size >= 2) {
-            val raw = (value[0].toInt() and 0xFF) or (value[1].toInt() shl 8)
-            val hum = raw / 100.0
-            val current = _sensorState.value
-            _sensorState.value = current.copy(currentHumidityPct = hum)
-            publishReading(current.currentTempC, hum)
+    private val gattCallback = object : BluetoothGattCallback() {
+        @SuppressLint("MissingPermission")
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            val device = gatt?.device
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                scope.launch(Dispatchers.Default) {
+                    _sensorState.value = _sensorState.value.copy(
+                        status = SensorConnectionStatus.CONNECTED_REAL,
+                        deviceName = device?.name ?: "BLE Incubator Sensor",
+                        deviceAddress = device?.address ?: "",
+                        isSimulated = false,
+                        connectionErrorMessage = null
+                    )
+                }
+                // Discover GATT services on the connected sensor
+                gatt?.discoverServices()
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                scope.launch(Dispatchers.Default) {
+                    _sensorState.value = _sensorState.value.copy(
+                        status = SensorConnectionStatus.DISCONNECTED,
+                        isSimulated = false,
+                        connectionErrorMessage = "Sensor disconnected"
+                    )
+                    _latestReading.value = null
+                }
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS || gatt == null) {
+                scope.launch(Dispatchers.Default) {
+                    _sensorState.value = _sensorState.value.copy(
+                        connectionErrorMessage = "Failed to discover GATT services ($status)"
+                    )
+                }
+                return
+            }
+
+            scope.launch(Dispatchers.Default) {
+                var foundEnvironmentalService = false
+
+                // 1. Check for standard Bluetooth SIG Environmental Sensing Service (0x181A)
+                val essService = gatt.getService(ESS_SERVICE_UUID)
+                if (essService != null) {
+                    foundEnvironmentalService = true
+                    val tempChar = essService.getCharacteristic(ESS_TEMP_CHAR_UUID)
+                    val humChar = essService.getCharacteristic(ESS_HUM_CHAR_UUID)
+
+                    tempChar?.let { subscribeCharacteristic(gatt, it) }
+                    humChar?.let { subscribeCharacteristic(gatt, it) }
+                }
+
+                // 2. Check for custom ESP32 Incubator Service (0xFFE0)
+                val esp32Service = gatt.getService(ESP32_INCUBATOR_SERVICE_UUID)
+                if (esp32Service != null) {
+                    foundEnvironmentalService = true
+                    val climateChar = esp32Service.getCharacteristic(ESP32_CLIMATE_CHAR_UUID)
+                    climateChar?.let { subscribeCharacteristic(gatt, it) }
+                }
+
+                // 3. Fallback: Search all discovered services for temperature / humidity characteristics
+                if (!foundEnvironmentalService) {
+                    for (service in gatt.services) {
+                        for (characteristic in service.characteristics) {
+                            if (characteristic.uuid == ESS_TEMP_CHAR_UUID ||
+                                characteristic.uuid == ESS_HUM_CHAR_UUID ||
+                                characteristic.uuid == ESP32_CLIMATE_CHAR_UUID
+                            ) {
+                                foundEnvironmentalService = true
+                                subscribeCharacteristic(gatt, characteristic)
+                            }
+                        }
+                    }
+                }
+
+                if (!foundEnvironmentalService) {
+                    _sensorState.value = _sensorState.value.copy(
+                        connectionErrorMessage = "Connected, but no Environmental Sensing characteristics found"
+                    )
+                }
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        private fun subscribeCharacteristic(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            // Enable notifications locally
+            gatt.setCharacteristicNotification(characteristic, true)
+
+            // Write to the Client Characteristic Configuration Descriptor (CCCD 0x2902)
+            val descriptor = characteristic.getDescriptor(CCCD_DESCRIPTOR_UUID)
+            if (descriptor != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    @Suppress("DEPRECATION")
+                    gatt.writeDescriptor(descriptor)
+                }
+            }
+
+            // Also trigger an immediate read so data appears right away
+            gatt.readCharacteristic(characteristic)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?
+        ) {
+            characteristic?.let {
+                @Suppress("DEPRECATION")
+                handleCharacteristicData(it.uuid, it.value)
+            }
+        }
+
+        // Android 13+ (API 33+) callback signature
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            handleCharacteristicData(characteristic.uuid, value)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?,
+            status: Int
+        ) {
+            if (status == BluetoothGatt.GATT_SUCCESS && characteristic != null) {
+                @Suppress("DEPRECATION")
+                handleCharacteristicData(characteristic.uuid, characteristic.value)
+            }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                handleCharacteristicData(characteristic.uuid, value)
+            }
+        }
+    }
+
+    private fun handleCharacteristicData(uuid: UUID, value: ByteArray?) {
+        if (value == null || value.isEmpty()) return
+
+        when (uuid) {
+            // Standard ESS Temperature (UUID 0x2A6E): 16-bit signed int in 0.01 °C
+            ESS_TEMP_CHAR_UUID -> {
+                if (value.size >= 2) {
+                    val raw = (value[0].toInt() and 0xFF) or (value[1].toInt() shl 8)
+                    val signedRaw = raw.toShort()
+                    val tempC = signedRaw / 100.0
+                    val current = _sensorState.value
+                    _sensorState.value = current.copy(
+                        currentTempC = tempC,
+                        lastSeenTimestamp = System.currentTimeMillis()
+                    )
+                    publishReading(tempC, current.currentHumidityPct)
+                }
+            }
+
+            // Standard ESS Humidity (UUID 0x2A6F): 16-bit unsigned int in 0.01 %
+            ESS_HUM_CHAR_UUID -> {
+                if (value.size >= 2) {
+                    val raw = (value[0].toInt() and 0xFF) or ((value[1].toInt() and 0xFF) shl 8)
+                    val humPct = raw / 100.0
+                    val current = _sensorState.value
+                    _sensorState.value = current.copy(
+                        currentHumidityPct = humPct,
+                        lastSeenTimestamp = System.currentTimeMillis()
+                    )
+                    publishReading(current.currentTempC, humPct)
+                }
+            }
+
+            // Custom ESP32 Incubator Format: parses string like "T:37.5,H:50.0" or binary
+            ESP32_CLIMATE_CHAR_UUID -> {
+                val text = String(value, StandardCharsets.UTF_8).trim()
+                var parsedTemp: Double? = null
+                var parsedHum: Double? = null
+
+                if (text.contains("T:") || text.contains("H:")) {
+                    // String protocol
+                    val parts = text.split(",")
+                    for (part in parts) {
+                        val trimmed = part.trim()
+                        if (trimmed.startsWith("T:")) {
+                            parsedTemp = trimmed.substring(2).toDoubleOrNull()
+                        } else if (trimmed.startsWith("H:")) {
+                            parsedHum = trimmed.substring(2).toDoubleOrNull()
+                        }
+                    }
+                } else if (value.size >= 4) {
+                    // Binary protocol: 2 bytes temp (x100), 2 bytes hum (x100)
+                    val rawTemp = ((value[0].toInt() and 0xFF) or (value[1].toInt() shl 8)).toShort()
+                    val rawHum = (value[2].toInt() and 0xFF) or ((value[3].toInt() and 0xFF) shl 8)
+                    parsedTemp = rawTemp / 100.0
+                    parsedHum = rawHum / 100.0
+                }
+
+                if (parsedTemp != null || parsedHum != null) {
+                    val current = _sensorState.value
+                    val finalTemp = parsedTemp ?: current.currentTempC
+                    val finalHum = parsedHum ?: current.currentHumidityPct
+
+                    _sensorState.value = current.copy(
+                        currentTempC = finalTemp,
+                        currentHumidityPct = finalHum,
+                        lastSeenTimestamp = System.currentTimeMillis()
+                    )
+                    publishReading(finalTemp, finalHum)
+                }
+            }
         }
     }
 
@@ -193,7 +386,7 @@ class BluetoothLeSensorDataSource(
         val reading = SensorReading(
             temperatureC = tempC,
             humidityPct = humPct,
-            isSimulated = false,
+            isSimulated = false, // REAL PHYSICAL SENSOR DATA
             sensorSource = "BLE",
             deviceName = _sensorState.value.deviceName,
             timestamp = System.currentTimeMillis()
@@ -202,16 +395,21 @@ class BluetoothLeSensorDataSource(
     }
 
     override suspend fun start() {
-        // Starts BLE monitoring if already paired/connected
+        // If an address was previously connected, attempt auto-reconnect
+        lastConnectedAddress?.let { address ->
+            connectToDevice(address)
+        }
     }
 
     @SuppressLint("MissingPermission")
     override suspend fun stop() {
         stopScan()
         try {
+            activeGatt?.disconnect()
             activeGatt?.close()
             activeGatt = null
         } catch (_: Exception) {}
+
         _sensorState.value = _sensorState.value.copy(
             status = SensorConnectionStatus.DISCONNECTED,
             connectionErrorMessage = "Sensor disconnected"

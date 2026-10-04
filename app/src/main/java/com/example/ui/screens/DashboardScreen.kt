@@ -19,13 +19,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -429,7 +429,7 @@ fun DashboardScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.RotateRight,
+                                        imageVector = Icons.AutoMirrored.Filled.RotateRight,
                                         contentDescription = null,
                                         tint = GoldTertiaryLight,
                                         modifier = Modifier.size(22.dp)

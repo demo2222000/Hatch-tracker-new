@@ -19,8 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sensors
@@ -338,7 +338,7 @@ fun SensorScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.BluetoothSearching, contentDescription = null)
+                                    Icon(Icons.AutoMirrored.Filled.BluetoothSearching, contentDescription = null)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Scan for BLE Sensors")
                                 }

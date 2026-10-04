@@ -42,7 +42,7 @@ abstract class HatchDatabase : RoomDatabase() {
                     HatchDatabase::class.java,
                     "hatchmaster_local.db"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance
