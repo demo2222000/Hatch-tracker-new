@@ -66,8 +66,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SpeciesPreset
+import com.example.ui.components.CelebrationParticleOverlay
 import com.example.ui.components.ClimateGaugeCard
 import com.example.ui.components.IncubationMilestonesDialog
+import com.example.ui.components.IncubatorEggHeroCard
 import com.example.ui.components.MilestoneTopic
 import com.example.ui.theme.AmberPrimaryLight
 import com.example.ui.theme.GoldTertiaryLight
@@ -104,10 +106,12 @@ fun DashboardScreen(
 
     var showMilestonesDialog by remember { mutableStateOf(false) }
     var selectedMilestoneTopic by remember { mutableStateOf(MilestoneTopic.LOCKDOWN) }
+    var celebrationTrigger by remember { mutableStateOf(0L) }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -183,6 +187,18 @@ fun DashboardScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 0. Interactive Living Incubator Chamber Hero (Animated Egg, Warmth Shimmer, Embryo Heartbeat)
+            item {
+                IncubatorEggHeroCard(
+                    batch = activeBatch,
+                    latestTempC = latestReading?.temperatureC ?: sensorState.currentTempC,
+                    latestHumidityPct = latestReading?.humidityPct ?: sensorState.currentHumidityPct,
+                    onCardClick = {
+                        activeBatch?.let { onNavigateToBatchDetail(it.id) } ?: onNavigateToCreateBatch()
+                    }
+                )
+            }
+
             // 1. Live Climate Telemetry Gauge Card
             item {
                 val targetTemp = activeBatch?.targetTempC ?: 37.5
@@ -517,7 +533,10 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilledTonalButton(
-                                    onClick = { viewModel.recordTurnNow(batch.id, "LEFT") },
+                                    onClick = {
+                                        viewModel.recordTurnNow(batch.id, "LEFT")
+                                        celebrationTrigger = System.currentTimeMillis()
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("quick_turn_left_button")
@@ -528,7 +547,10 @@ fun DashboardScreen(
                                 }
 
                                 Button(
-                                    onClick = { viewModel.recordTurnNow(batch.id, "RIGHT") },
+                                    onClick = {
+                                        viewModel.recordTurnNow(batch.id, "RIGHT")
+                                        celebrationTrigger = System.currentTimeMillis()
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight),
                                     modifier = Modifier
                                         .weight(1f)
@@ -675,14 +697,21 @@ fun DashboardScreen(
                 }
             }
         }
+    }
 
-        // Incubation Milestones Guidance Dialog
+    // Incubation Milestones Guidance Dialog
         if (showMilestonesDialog) {
             IncubationMilestonesDialog(
                 initialTopic = selectedMilestoneTopic,
                 onDismiss = { showMilestonesDialog = false }
             )
         }
+
+        // Celebratory particle overlay
+        CelebrationParticleOverlay(
+            trigger = celebrationTrigger,
+            onComplete = { celebrationTrigger = 0L }
+        )
     }
 }
 

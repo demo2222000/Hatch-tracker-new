@@ -1,5 +1,11 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,9 +31,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -339,13 +347,44 @@ fun SensorStatusBadge(
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
+            val infiniteTransition = rememberInfiniteTransition(label = "badge_pulse")
+            val pulseScale by infiniteTransition.animateFloat(
+                initialValue = 1f,
+                targetValue = 2.2f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "dot_pulse_scale"
             )
-            Spacer(modifier = Modifier.width(5.dp))
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.7f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "dot_pulse_alpha"
+            )
+
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(10.dp)) {
+                if (status != SensorConnectionStatus.DISCONNECTED) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape)
+                            .background(dotColor.copy(alpha = pulseAlpha))
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = badgeText,
                 style = MaterialTheme.typography.labelSmall.copy(

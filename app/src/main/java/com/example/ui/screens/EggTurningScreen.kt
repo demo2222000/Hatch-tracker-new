@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -36,6 +37,8 @@ import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
@@ -57,8 +60,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,11 +77,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate as drawScopeRotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.TurningLog
+import com.example.ui.components.CelebrationParticleOverlay
 import com.example.ui.components.IncubationMilestonesDialog
 import com.example.ui.components.MilestoneTopic
 import com.example.ui.theme.AmberPrimaryLight
@@ -105,12 +112,26 @@ fun EggTurningScreen(
     var showPastTurnDialog by remember { mutableStateOf(false) }
     var showMilestonesDialog by remember { mutableStateOf(false) }
     var selectedMilestoneTopic by remember { mutableStateOf(MilestoneTopic.LOCKDOWN) }
+    var celebrationTrigger by remember { mutableStateOf(0L) }
+
+    // Motorized auto-turn demo simulation
+    var isDemoRunning by remember { mutableStateOf(false) }
+    val demoAnim = remember { Animatable(0f) }
+
+    LaunchedEffect(isDemoRunning) {
+        if (isDemoRunning) {
+            demoAnim.animateTo(-38f, tween(1100, easing = FastOutSlowInEasing))
+            demoAnim.animateTo(38f, tween(2000, easing = FastOutSlowInEasing))
+            demoAnim.animateTo(0f, tween(1200, easing = FastOutSlowInEasing))
+            isDemoRunning = false
+        }
+    }
 
     val now = System.currentTimeMillis()
     val batch = activeBatch
     val inLockdown = batch?.isInLockdown() == true
 
-    // Determine current visual tilt from latest log
+    // Determine current visual tilt from latest log or demo
     val lastOrientation = turningLogs.firstOrNull()?.orientation ?: "CENTER"
     val targetRotationAngle = when (lastOrientation) {
         "LEFT" -> -32f
@@ -123,9 +144,12 @@ fun EggTurningScreen(
         label = "egg_tilt_angle"
     )
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
+    val currentEffectiveTilt = if (isDemoRunning) demoAnim.value else animatedRotation
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
             TopAppBar(
                 title = { Text("Egg Turning Management", fontWeight = FontWeight.Bold) },
                 actions = {
@@ -227,10 +251,31 @@ fun EggTurningScreen(
                     ) {
                         // Interactive Animated Cradle Visualizer
                         AnimatedEggCradleVisualizer(
-                            tiltAngle = animatedRotation,
-                            lastOrientation = lastOrientation,
+                            tiltAngle = currentEffectiveTilt,
+                            lastOrientation = if (isDemoRunning) (if (currentEffectiveTilt < 0) "LEFT" else "RIGHT") else lastOrientation,
                             isDue = nextTurnMs <= 0
                         )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Test Motorized Auto-Turn Cycle Button
+                        FilledTonalButton(
+                            onClick = { isDemoRunning = true },
+                            enabled = !isDemoRunning,
+                            modifier = Modifier.testTag("action_demo_turn_cycle")
+                        ) {
+                            Icon(
+                                imageVector = if (isDemoRunning) Icons.Default.Refresh else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isDemoRunning) "Simulating Auto-Turn..." else "Test Auto-Turn Demo Motion",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
@@ -270,7 +315,10 @@ fun EggTurningScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Button(
-                                    onClick = { viewModel.recordTurnNow(batch.id, "LEFT") },
+                                    onClick = {
+                                        viewModel.recordTurnNow(batch.id, "LEFT")
+                                        celebrationTrigger = System.currentTimeMillis()
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("action_turn_left"),
@@ -282,7 +330,10 @@ fun EggTurningScreen(
                                 }
 
                                 Button(
-                                    onClick = { viewModel.recordTurnNow(batch.id, "RIGHT") },
+                                    onClick = {
+                                        viewModel.recordTurnNow(batch.id, "RIGHT")
+                                        celebrationTrigger = System.currentTimeMillis()
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("action_turn_right"),
@@ -503,6 +554,7 @@ fun EggTurningScreen(
                     orientation = orientation,
                     notes = notes
                 )
+                celebrationTrigger = System.currentTimeMillis()
                 showPastTurnDialog = false
             }
         )
@@ -515,6 +567,13 @@ fun EggTurningScreen(
             onDismiss = { showMilestonesDialog = false }
         )
     }
+
+    // Celebratory particle overlay
+    CelebrationParticleOverlay(
+        trigger = celebrationTrigger,
+        onComplete = { celebrationTrigger = 0L }
+    )
+}
 }
 
 /**
@@ -604,10 +663,29 @@ private fun AnimatedEggCradleVisualizer(
                         style = Stroke(width = 2f)
                     )
                 }
+                // Mechanical Pivot Drive Gear
+                val gearAngle = tiltAngle * 3.5f
+                drawScopeRotate(degrees = gearAngle, pivot = Offset(size.width / 2f, 49f)) {
+                    drawCircle(
+                        color = Color(0xFF94A3B8),
+                        center = Offset(size.width / 2f, 49f),
+                        radius = 8f
+                    )
+                    for (deg in 0 until 360 step 60) {
+                        val rad = Math.toRadians(deg.toDouble())
+                        val gx = (size.width / 2f) + (kotlin.math.cos(rad) * 11).toFloat()
+                        val gy = 49f + (kotlin.math.sin(rad) * 11).toFloat()
+                        drawCircle(
+                            color = Color(0xFF64748B),
+                            center = Offset(gx, gy),
+                            radius = 2.5f
+                        )
+                    }
+                }
             }
         }
 
-        // Orientation Badge Overlay
+        // Orientation & Live Angle Badge Overlay
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -618,12 +696,13 @@ private fun AnimatedEggCradleVisualizer(
                 )
                 .padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
+            val orientationLabel = when {
+                tiltAngle < -8f -> "Tilted Left"
+                tiltAngle > 8f -> "Tilted Right"
+                else -> "Centered"
+            }
             Text(
-                text = when (lastOrientation) {
-                    "LEFT" -> "Cradle Tilted Left (-32°)"
-                    "RIGHT" -> "Cradle Tilted Right (+32°)"
-                    else -> "Cradle Centered (0°)"
-                },
+                text = "${String.format(Locale.getDefault(), "%.1f", tiltAngle)}° • $orientationLabel",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp

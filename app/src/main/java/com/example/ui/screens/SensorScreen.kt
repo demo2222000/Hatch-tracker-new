@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.example.sensor.DiscoveredSensorDevice
 import com.example.sensor.SensorConnectionStatus
 import com.example.sensor.SensorSourceType
+import com.example.ui.components.AnimatedSensorTelemetryInstrument
 import com.example.ui.components.SensorStatusBadge
 import com.example.ui.theme.AmberPrimaryLight
 import com.example.ui.theme.StatusCritical
@@ -123,89 +124,18 @@ fun SensorScreen(
                 }
             }
 
-            // Current Telemetry Overview
+            // Current Telemetry Overview with Animated Instrument
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "CURRENT TELEMETRY",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                val temp = latestReading?.temperatureC ?: sensorState.currentTempC
+                val hum = latestReading?.humidityPct ?: sensorState.currentHumidityPct
+                val isLive = sensorState.status != SensorConnectionStatus.DISCONNECTED
 
-                            SensorStatusBadge(
-                                status = sensorState.status,
-                                isSimulated = sensorState.isSimulated
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        if (sensorState.status == SensorConnectionStatus.DISCONNECTED) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(StatusCritical.copy(alpha = 0.1f))
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.WifiOff, contentDescription = null, tint = StatusCritical)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text("Sensor Disconnected", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = StatusCritical)
-                                    Text(sensorState.connectionErrorMessage ?: "No telemetry packet received. Real sensor is offline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        } else {
-                            val temp = latestReading?.temperatureC ?: sensorState.currentTempC
-                            val hum = latestReading?.humidityPct ?: sensorState.currentHumidityPct
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text("Temperature", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(
-                                        text = viewModel.formatTemperature(temp),
-                                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                        color = AmberPrimaryLight
-                                    )
-                                }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Humidity", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(
-                                        text = "${hum.toInt()}%",
-                                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                        color = TealSecondaryLight
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Source: ${sensorState.deviceName} (${if (sensorState.isSimulated) "Simulated Data" else "Real Hardware"})",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                AnimatedSensorTelemetryInstrument(
+                    temperatureC = temp,
+                    humidityPct = hum,
+                    formattedTemp = viewModel.formatTemperature(temp),
+                    isLive = isLive
+                )
             }
 
             // Demo Simulator Controls (when Demo mode is active)
