@@ -118,11 +118,13 @@ class IncubatorRepository(
         batchId: Long,
         orientation: String,
         action: String = "COMPLETED",
-        notes: String = ""
+        notes: String = "",
+        timestamp: Long = System.currentTimeMillis()
     ) {
         turningDao.insertLog(
             TurningLog(
                 batchId = batchId,
+                timestamp = timestamp,
                 action = action,
                 orientation = orientation,
                 notes = notes
@@ -133,21 +135,34 @@ class IncubatorRepository(
 
         val schedule = turningDao.getSchedule(batchId)
         if (schedule != null && schedule.enabled) {
-            val nextTurn = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(schedule.intervalHours.toLong())
+            val nextTurn = timestamp + TimeUnit.HOURS.toMillis(schedule.intervalHours.toLong())
+            val effectiveNextTurn = if (nextTurn > System.currentTimeMillis()) {
+                nextTurn
+            } else {
+                System.currentTimeMillis() + TimeUnit.HOURS.toMillis(schedule.intervalHours.toLong())
+            }
             turningDao.insertOrUpdateSchedule(
                 schedule.copy(
-                    lastTurnTimestamp = System.currentTimeMillis(),
-                    nextTurnTimestamp = nextTurn,
+                    lastTurnTimestamp = timestamp,
+                    nextTurnTimestamp = effectiveNextTurn,
                     totalTurnsCompleted = schedule.totalTurnsCompleted + 1
                 )
             )
-            alarmScheduler.scheduleNextTurn(batchId, nextTurn)
+            alarmScheduler.scheduleNextTurn(batchId, effectiveNextTurn)
         }
     }
 
     suspend fun acknowledgeAlert(id: Long) = alertDao.acknowledgeAlert(id)
     suspend fun acknowledgeAllAlerts() = alertDao.acknowledgeAllAlerts()
     suspend fun clearAllAlerts() = alertDao.clearAllAlerts()
+
+    suspend fun generatePdfExport(batchId: Long): com.example.pdf.PdfReportExportResult? {
+        val batch = batchDao.getBatchById(batchId) ?: return null
+        val readings = sensorDao.getReadingsForBatch(batchId)
+        val turnings = turningDao.getLogsForBatch(batchId)
+        val alerts = alertDao.getAlertsForBatch(batchId)
+        return pdfGenerator.generateBatchReport(batch, readings, turnings, alerts)
+    }
 
     suspend fun generatePdfReport(batchId: Long): android.content.Intent? {
         val batch = batchDao.getBatchById(batchId) ?: return null

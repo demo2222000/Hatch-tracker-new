@@ -36,11 +36,17 @@ class DemoSensorDataSource(
     private val _latestReading = MutableStateFlow<SensorReading?>(null)
     override val latestReading: StateFlow<SensorReading?> = _latestReading.asStateFlow()
 
-    private var tickerJob: Job? = null
+    private val _targetTemp = MutableStateFlow(37.5)
+    val targetTemp: StateFlow<Double> = _targetTemp.asStateFlow()
 
-    private var baseTargetTemp: Double = 37.5
-    private var baseTargetHumidity: Double = 50.0
+    private val _targetHumidity = MutableStateFlow(50.0)
+    val targetHumidity: StateFlow<Double> = _targetHumidity.asStateFlow()
+
+    private val _enableDrift = MutableStateFlow(false)
+    val enableDrift: StateFlow<Boolean> = _enableDrift.asStateFlow()
+
     private var isSimulatingDisconnect: Boolean = false
+    private var tickerJob: Job? = null
 
     override suspend fun start() {
         if (tickerJob?.isActive == true) return
@@ -54,17 +60,20 @@ class DemoSensorDataSource(
                     )
                     _latestReading.value = null
                 } else {
-                    // Small natural drift around setpoint (±0.08°C, ±0.6% humidity)
-                    val tempNoise = (Random.nextDouble(-0.08, 0.08) * 10).toInt() / 10.0
-                    val humNoise = (Random.nextDouble(-0.6, 0.6) * 10).toInt() / 10.0
+                    val baseT = _targetTemp.value
+                    val baseH = _targetHumidity.value
 
-                    val roundedTemp = ((baseTargetTemp + tempNoise) * 10).toInt() / 10.0
-                    val roundedHum = ((baseTargetHumidity + humNoise) * 10).toInt() / 10.0
+                    // Only add small natural drift if explicitly enabled by user
+                    val tempNoise = if (_enableDrift.value) (Random.nextDouble(-0.04, 0.04) * 10).toInt() / 10.0 else 0.0
+                    val humNoise = if (_enableDrift.value) (Random.nextDouble(-0.3, 0.3) * 10).toInt() / 10.0 else 0.0
+
+                    val roundedTemp = ((baseT + tempNoise) * 10).toInt() / 10.0
+                    val roundedHum = ((baseH + humNoise) * 10).toInt() / 10.0
 
                     val reading = SensorReading(
                         temperatureC = roundedTemp,
                         humidityPct = roundedHum,
-                        isSimulated = true, // ALWAYS TRUE for demo
+                        isSimulated = true,
                         sensorSource = "DEMO",
                         deviceName = "Demo Precision Sensor",
                         timestamp = System.currentTimeMillis()
@@ -81,7 +90,7 @@ class DemoSensorDataSource(
                     _latestReading.value = reading
                 }
 
-                delay(3000) // update every 3 seconds for responsive demo experience
+                delay(3000)
             }
         }
     }
@@ -91,13 +100,17 @@ class DemoSensorDataSource(
         tickerJob = null
     }
 
+    fun setEnableDrift(enabled: Boolean) {
+        _enableDrift.value = enabled
+    }
+
     override suspend fun setSimulatedCondition(
         targetTemp: Double,
         targetHumidity: Double,
         forceDisconnected: Boolean
     ) {
-        this.baseTargetTemp = targetTemp
-        this.baseTargetHumidity = targetHumidity
+        _targetTemp.value = ((targetTemp * 10).toInt()) / 10.0
+        _targetHumidity.value = ((targetHumidity * 10).toInt()) / 10.0
         this.isSimulatingDisconnect = forceDisconnected
 
         if (forceDisconnected) {
@@ -109,9 +122,17 @@ class DemoSensorDataSource(
         } else {
             _sensorState.value = _sensorState.value.copy(
                 status = SensorConnectionStatus.CONNECTED_DEMO,
-                currentTempC = targetTemp,
-                currentHumidityPct = targetHumidity,
+                currentTempC = _targetTemp.value,
+                currentHumidityPct = _targetHumidity.value,
                 connectionErrorMessage = null
+            )
+            _latestReading.value = SensorReading(
+                temperatureC = _targetTemp.value,
+                humidityPct = _targetHumidity.value,
+                isSimulated = true,
+                sensorSource = "DEMO",
+                deviceName = "Demo Precision Sensor",
+                timestamp = System.currentTimeMillis()
             )
         }
     }

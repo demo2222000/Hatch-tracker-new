@@ -43,4 +43,19 @@ class ExampleRobolectricTest {
         assertTrue(chicken.requiresTurning)
         assertEquals(37.5, chicken.targetTempC, 0.01)
     }
+
+    @Test
+    fun `test pdf report generation does not crash`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val generator = com.example.pdf.PdfReportGenerator(context)
+        val batch = IncubationBatch(
+            id = 1L,
+            name = "Test Batch",
+            species = "Chicken",
+            startDate = System.currentTimeMillis() - 86400000L * 5,
+            totalEggs = 24
+        )
+        val intent = generator.generateAndShareBatchReport(batch, emptyList(), emptyList(), emptyList())
+        println("Generated intent: $intent")
+    }
 }

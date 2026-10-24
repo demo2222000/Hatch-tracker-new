@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmberPrimaryLight
 import com.example.ui.theme.StatusOptimal
 import com.example.ui.viewmodel.IncubatorViewModel
+import com.example.pdf.PdfReportExportResult
+import com.example.ui.components.PdfExportDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,6 +63,7 @@ fun ReportsScreen(
     val batches by viewModel.allBatches.collectAsState()
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
     var generatingBatchId by remember { mutableStateOf<Long?>(null) }
+    var activeExportResult by remember { mutableStateOf<PdfReportExportResult?>(null) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -160,26 +163,28 @@ fun ReportsScreen(
                             Button(
                                 onClick = {
                                     generatingBatchId = batch.id
-                                    viewModel.generatePdfReport(batch.id) { intent ->
+                                    viewModel.exportPdfReport(batch.id) { result ->
                                         generatingBatchId = null
-                                        if (intent != null) {
-                                            context.startActivity(intent)
+                                        if (result != null) {
+                                            activeExportResult = result
                                         } else {
-                                            Toast.makeText(context, "Failed to build PDF", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Failed to build PDF report", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("action_export_report_${batch.id}"),
                                 colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight)
                             ) {
                                 if (isGenerating) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Rendering PDF...")
+                                    Text("Rendering PDF Report...")
                                 } else {
-                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Generate & Share PDF Report")
+                                    Text("Export PDF Report (View/Share)")
                                 }
                             }
                         }
@@ -187,5 +192,13 @@ fun ReportsScreen(
                 }
             }
         }
+    }
+
+    // PDF Export Success Dialog (View, Share, Locate in Downloads)
+    activeExportResult?.let { res ->
+        PdfExportDialog(
+            exportResult = res,
+            onDismiss = { activeExportResult = null }
+        )
     }
 }

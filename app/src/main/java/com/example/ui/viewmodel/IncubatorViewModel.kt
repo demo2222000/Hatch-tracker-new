@@ -141,10 +141,30 @@ class IncubatorViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Demo Sensor Configuration Flows
+    val demoTargetTemp: StateFlow<Double> = sensorManager.demoSource.targetTemp
+    val demoTargetHumidity: StateFlow<Double> = sensorManager.demoSource.targetHumidity
+    val demoDriftEnabled: StateFlow<Boolean> = sensorManager.demoSource.enableDrift
+
+    fun setDemoDriftEnabled(enabled: Boolean) {
+        sensorManager.demoSource.setEnableDrift(enabled)
+    }
+
     // Egg Turning Actions
     fun recordTurnNow(batchId: Long, orientation: String, notes: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.recordTurn(batchId, orientation, "COMPLETED", notes)
+            repository.recordTurn(batchId, orientation, "COMPLETED", notes, System.currentTimeMillis())
+        }
+    }
+
+    fun recordPastTurn(
+        batchId: Long,
+        timestamp: Long,
+        orientation: String,
+        notes: String = "Manual entry / Logged past turn"
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.recordTurn(batchId, orientation, "COMPLETED", notes, timestamp)
         }
     }
 
@@ -198,12 +218,21 @@ class IncubatorViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // PDF Report
+    // PDF Report Export (View, Share, Save)
+    fun exportPdfReport(batchId: Long, onReady: (com.example.pdf.PdfReportExportResult?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = repository.generatePdfExport(batchId)
+            launch(Dispatchers.Main) {
+                onReady(result)
+            }
+        }
+    }
+
     fun generatePdfReport(batchId: Long, onReady: (Intent?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val intent = repository.generatePdfReport(batchId)
+            val result = repository.generatePdfExport(batchId)
             launch(Dispatchers.Main) {
-                onReady(intent)
+                onReady(result?.shareIntent ?: result?.viewIntent)
             }
         }
     }

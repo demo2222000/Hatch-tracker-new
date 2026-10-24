@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -82,8 +83,9 @@ fun SensorScreen(
     val discoveredDevices by viewModel.discoveredBleDevices.collectAsState()
     val isFahrenheit by viewModel.isFahrenheit.collectAsState()
 
-    var simTemp by remember { mutableDoubleStateOf(37.5) }
-    var simHum by remember { mutableDoubleStateOf(50.0) }
+    val demoTargetTemp by viewModel.demoTargetTemp.collectAsState()
+    val demoTargetHumidity by viewModel.demoTargetHumidity.collectAsState()
+    val demoDriftEnabled by viewModel.demoDriftEnabled.collectAsState()
     var forceDisconnect by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -234,13 +236,13 @@ fun SensorScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            Text("Simulated Temperature: ${String.format(Locale.US, "%.1f", simTemp)}°C", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                            Text("Set Incubator Temperature: ${String.format(Locale.US, "%.1f", demoTargetTemp)}°C (Stable)", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
                             Slider(
-                                value = simTemp.toFloat(),
+                                value = demoTargetTemp.toFloat(),
                                 onValueChange = {
-                                    simTemp = ((it * 10).toInt()) / 10.0
+                                    val newTemp = ((it * 10).toInt()) / 10.0
                                     forceDisconnect = false
-                                    viewModel.updateDemoSimulation(simTemp, simHum, false)
+                                    viewModel.updateDemoSimulation(newTemp, demoTargetHumidity, false)
                                 },
                                 valueRange = 34.0f..41.0f,
                                 modifier = Modifier.testTag("slider_sim_temp")
@@ -248,19 +250,38 @@ fun SensorScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Text("Simulated Humidity: ${simHum.toInt()}%", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                            Text("Set Incubator Humidity: ${demoTargetHumidity.toInt()}% (Stable)", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
                             Slider(
-                                value = simHum.toFloat(),
+                                value = demoTargetHumidity.toFloat(),
                                 onValueChange = {
-                                    simHum = ((it * 10).toInt()) / 10.0
+                                    val newHum = ((it * 10).toInt()) / 10.0
                                     forceDisconnect = false
-                                    viewModel.updateDemoSimulation(simTemp, simHum, false)
+                                    viewModel.updateDemoSimulation(demoTargetTemp, newHum, false)
                                 },
                                 valueRange = 25.0f..90.0f,
                                 modifier = Modifier.testTag("slider_sim_humidity")
                             )
 
                             Spacer(modifier = Modifier.height(12.dp))
+
+                            // Drift toggle: Keep off for completely fixed temperature
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Simulate Ambient Drift", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                                    Text("Turn OFF to keep temperature 100% steady without fluctuations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(
+                                    checked = demoDriftEnabled,
+                                    onCheckedChange = { viewModel.setDemoDriftEnabled(it) },
+                                    modifier = Modifier.testTag("toggle_demo_drift")
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
 
                             // Quick Presets to test alerts
                             Text("Quick Trigger Test Buttons:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
@@ -272,21 +293,18 @@ fun SensorScreen(
                             ) {
                                 FilledTonalButton(
                                     onClick = {
-                                        simTemp = 37.5
-                                        simHum = 50.0
                                         forceDisconnect = false
                                         viewModel.updateDemoSimulation(37.5, 50.0, false)
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Optimal")
+                                    Text("Optimal (37.5°)")
                                 }
 
                                 FilledTonalButton(
                                     onClick = {
-                                        simTemp = 39.5
                                         forceDisconnect = false
-                                        viewModel.updateDemoSimulation(39.5, simHum, false)
+                                        viewModel.updateDemoSimulation(39.5, demoTargetHumidity, false)
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -296,7 +314,7 @@ fun SensorScreen(
                                 FilledTonalButton(
                                     onClick = {
                                         forceDisconnect = !forceDisconnect
-                                        viewModel.updateDemoSimulation(simTemp, simHum, forceDisconnect)
+                                        viewModel.updateDemoSimulation(demoTargetTemp, demoTargetHumidity, forceDisconnect)
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {

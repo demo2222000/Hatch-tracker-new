@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +27,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Egg
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,14 +47,19 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +67,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SpeciesPreset
 import com.example.ui.components.ClimateGaugeCard
+import com.example.ui.components.IncubationMilestonesDialog
+import com.example.ui.components.MilestoneTopic
 import com.example.ui.theme.AmberPrimaryLight
 import com.example.ui.theme.GoldTertiaryLight
 import com.example.ui.theme.StatusCritical
@@ -85,6 +101,9 @@ fun DashboardScreen(
     val isFahrenheit by viewModel.isFahrenheit.collectAsState()
 
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+
+    var showMilestonesDialog by remember { mutableStateOf(false) }
+    var selectedMilestoneTopic by remember { mutableStateOf(MilestoneTopic.LOCKDOWN) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -198,6 +217,25 @@ fun DashboardScreen(
                     val progress = (currentDay.toFloat() / batch.incubationDays.toFloat()).coerceIn(0f, 1f)
                     val inLockdown = batch.isInLockdown()
 
+                    // Encouraging Pulse Animation on Active Incubation
+                    val infinitePulse = rememberInfiniteTransition(label = "batch_pulse")
+                    val pulseScale by infinitePulse.animateFloat(
+                        initialValue = 0.97f,
+                        targetValue = 1.03f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1300, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "pulse_scale"
+                    )
+
+                    // Smooth animated progress
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = progress,
+                        animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                        label = "progress_bar_anim"
+                    )
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -230,6 +268,7 @@ fun DashboardScreen(
 
                                 Box(
                                     modifier = Modifier
+                                        .scale(if (inLockdown) pulseScale else 1f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(
                                             if (inLockdown) StatusCritical.copy(alpha = 0.15f)
@@ -250,9 +289,9 @@ fun DashboardScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Linear Progress bar
+                            // Smooth Animated Linear Progress bar
                             LinearProgressIndicator(
-                                progress = { progress },
+                                progress = { animatedProgress },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(8.dp)
@@ -288,19 +327,31 @@ fun DashboardScreen(
                                         .background(StatusCritical.copy(alpha = 0.12f))
                                         .padding(10.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.LockClock,
-                                            contentDescription = null,
-                                            tint = StatusCritical,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Lockdown active: Stop egg rotation. Maintain humidity around ${batch.lockdownHumidityPct.toInt()}% for hatching.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = StatusCritical
-                                        )
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LockClock,
+                                                contentDescription = null,
+                                                tint = StatusCritical,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Lockdown active: Stop egg rotation. Maintain humidity around ${batch.lockdownHumidityPct.toInt()}% for hatching.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = StatusCritical
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        TextButton(
+                                            onClick = {
+                                                selectedMilestoneTopic = MilestoneTopic.LOCKDOWN
+                                                showMilestonesDialog = true
+                                            },
+                                            modifier = Modifier.align(Alignment.End)
+                                        ) {
+                                            Text("Open Lockdown Guide →", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = StatusCritical)
+                                        }
                                     }
                                 }
                             }
@@ -493,7 +544,87 @@ fun DashboardScreen(
                 }
             }
 
-            // 5. Beginner Guidance / Species Tip
+            // 5. Incubation Pop-up Guidance Cards
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = AmberPrimaryLight, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "INCUBATION POP-UP GUIDELINES",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    selectedMilestoneTopic = MilestoneTopic.LOCKDOWN
+                                    showMilestonesDialog = true
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("dashboard_guide_lockdown")
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Stop Turning", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    selectedMilestoneTopic = MilestoneTopic.HUMIDITY
+                                    showMilestonesDialog = true
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("dashboard_guide_humidity")
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.WaterDrop, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Humidity 70%", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    selectedMilestoneTopic = MilestoneTopic.HATCH_DAY
+                                    showMilestonesDialog = true
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("dashboard_guide_hatch_day")
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.Egg, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Hatch Day", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 6. Beginner Guidance / Species Tip
             item {
                 val batch = activeBatch
                 val preset = SpeciesPreset.getById(batch?.species ?: "chicken")
@@ -543,6 +674,14 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        // Incubation Milestones Guidance Dialog
+        if (showMilestonesDialog) {
+            IncubationMilestonesDialog(
+                initialTopic = selectedMilestoneTopic,
+                onDismiss = { showMilestonesDialog = false }
+            )
         }
     }
 }

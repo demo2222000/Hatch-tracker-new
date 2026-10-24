@@ -77,6 +77,10 @@ import com.example.ui.theme.AmberPrimaryLight
 import com.example.ui.theme.StatusAlert
 import com.example.ui.theme.StatusCritical
 import com.example.ui.theme.StatusOptimal
+import com.example.pdf.PdfReportExportResult
+import com.example.ui.components.IncubationMilestonesDialog
+import com.example.ui.components.MilestoneTopic
+import com.example.ui.components.PdfExportDialog
 import com.example.ui.theme.TealSecondaryLight
 import com.example.ui.viewmodel.IncubatorViewModel
 import java.text.SimpleDateFormat
@@ -100,6 +104,11 @@ fun BatchDetailScreen(
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val dateTimeFormat = remember { SimpleDateFormat("MMM dd, yyyy, hh:mm a", Locale.getDefault()) }
     var isGeneratingPdf by remember { mutableStateOf(false) }
+    var activeExportResult by remember { mutableStateOf<PdfReportExportResult?>(null) }
+
+    // Dialog state for milestones pop-up guide
+    var showMilestonesDialog by remember { mutableStateOf(false) }
+    var milestoneDialogTopic by remember { mutableStateOf(MilestoneTopic.LOCKDOWN) }
 
     // Dialog state for editing Start Date (e.g. backdating to Oct 2)
     var showStartDateDialog by remember { mutableStateOf(false) }
@@ -131,10 +140,10 @@ fun BatchDetailScreen(
                         onClick = {
                             if (batch != null) {
                                 isGeneratingPdf = true
-                                viewModel.generatePdfReport(batch.id) { intent ->
+                                viewModel.exportPdfReport(batch.id) { result ->
                                     isGeneratingPdf = false
-                                    if (intent != null) {
-                                        context.startActivity(intent)
+                                    if (result != null) {
+                                        activeExportResult = result
                                     } else {
                                         Toast.makeText(context, "Error generating local PDF", Toast.LENGTH_SHORT).show()
                                     }
@@ -575,10 +584,10 @@ fun BatchDetailScreen(
                         Button(
                             onClick = {
                                 isGeneratingPdf = true
-                                viewModel.generatePdfReport(batch.id) { intent ->
+                                viewModel.exportPdfReport(batch.id) { result ->
                                     isGeneratingPdf = false
-                                    if (intent != null) {
-                                        context.startActivity(intent)
+                                    if (result != null) {
+                                        activeExportResult = result
                                     } else {
                                         Toast.makeText(context, "Error creating PDF", Toast.LENGTH_SHORT).show()
                                     }
@@ -590,9 +599,15 @@ fun BatchDetailScreen(
                                 .testTag("generate_batch_pdf_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = AmberPrimaryLight)
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Generate & Share Batch PDF Report")
+                            if (isGeneratingPdf) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Rendering PDF...")
+                            } else {
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Generate & View/Share Batch PDF Report")
+                            }
                         }
                     }
                 }
@@ -689,6 +704,22 @@ fun BatchDetailScreen(
                         Text("Cancel")
                     }
                 }
+            )
+        }
+
+        // PDF Export Success Dialog
+        activeExportResult?.let { res ->
+            PdfExportDialog(
+                exportResult = res,
+                onDismiss = { activeExportResult = null }
+            )
+        }
+
+        // Incubation Milestones Guidance Dialog
+        if (showMilestonesDialog) {
+            IncubationMilestonesDialog(
+                initialTopic = milestoneDialogTopic,
+                onDismiss = { showMilestonesDialog = false }
             )
         }
     }
